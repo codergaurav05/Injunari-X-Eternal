@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Immortal HyperLink Generator</title>
+    <title>Atharv</title>
     <style>
         /* General Reset */
         * {
@@ -20,6 +20,7 @@
             justify-content: center;
             align-items: center;
             height: 100vh;
+            overflow: hidden;
         }
 
         .container {
@@ -29,6 +30,8 @@
             text-align: center;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8);
             width: 400px;
+            position: relative;
+            z-index: 2; /* Ensures the content stays above the animation */
         }
 
         .container h1 {
@@ -72,7 +75,7 @@
             background-color: #4b0082;
         }
 
-        /* Popup Styling */
+        /* Popup Styling with Animation */
         .popup-overlay {
             display: none;
             position: fixed;
@@ -87,9 +90,9 @@
         .popup {
             display: none;
             position: fixed;
-            top: 50%;
+            top: -100%; /* Initially hidden above the viewport */
             left: 50%;
-            transform: translate(-50%, -50%);
+            transform: translate(-50%, 0);
             background-color: #1c1c1c;
             color: #ffffff;
             padding: 30px;
@@ -97,6 +100,7 @@
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.7);
             text-align: center;
             z-index: 10;
+            animation: slideDown 0.5s forwards;
         }
 
         .popup a {
@@ -118,9 +122,60 @@
         .popup button:hover {
             background-color: #4b0082;
         }
+
+        @keyframes slideDown {
+            from {
+                top: -100%;
+            }
+            to {
+                top: 50%;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                top: 50%;
+            }
+            to {
+                top: -100%;
+            }
+        }
+
+        /* Background Animation */
+        .snowflakes {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        .snowflake {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background-color: red;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(255, 0, 0, 0.8);
+            animation: fall infinite linear;
+        }
+
+        @keyframes fall {
+            from {
+                transform: translateY(-10vh);
+            }
+            to {
+                transform: translateY(110vh);
+            }
+        }
     </style>
 </head>
 <body>
+    <div class="snowflakes" id="snowflakes"></div>
+
     <div class="container">
         <h1>Atharv</h1>
         <p>Generate a HyperLink</p>
@@ -144,41 +199,42 @@
             }
 
             try {
-                // Use Bitly API to shorten the URL
-                const response = await fetch("https://api-ssl.bitly.com/v4/shorten", {
+                // Remove the colon after "https" in the original URL
+                const sanitizedURL = urlInput.replace("https://", "https//");
+
+                // TinyURL API call
+                const response = await fetch(`https://api.tinyurl.com/create`, {
                     method: "POST",
                     headers: {
-                        "Authorization": "Bearer ec7f16f35733a7bdc245f27990d1a2943e480181", // Replace with your Bitly Access Token
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "Authorization": "Bearer egwZfPxnjhmHh9tOr6LhbIH03m6woFN0x4eomhhv9GILmh9smZocgyT85Sjz" // Replace with your TinyURL API key
                     },
-                    body: JSON.stringify({ long_url: urlInput })
+                    body: JSON.stringify({
+                        url: urlInput
+                    })
                 });
 
                 const data = await response.json();
-                
-                // Check if the response contains the shortened URL
-                if (data.errors) {
-                    throw new Error(data.errors[0].message);
+
+                if (data.data && data.data.tiny_url) {
+                    const shortURL = data.data.tiny_url;
+
+                    // Format the markdown with the sanitized and shortened URL
+                    const formattedMarkdown = `[${sanitizedURL}](${shortURL})`;
+
+                    // Display the popup with the clickable hyperlink
+                    popupOverlay.style.display = "block";
+                    popup.style.display = "block";
+                    popup.innerHTML = `
+                        <p>Generated Link:</p>
+                        <a href="${shortURL}" target="_blank">${formattedMarkdown}</a>
+                        <br>
+                        <button onclick="copyToClipboard('${formattedMarkdown}')">Copy</button>
+                        <button onclick="closePopup()">OK</button>
+                    `;
+                } else {
+                    throw new Error(data.errors?.[0]?.message || "Failed to shorten URL.");
                 }
-
-                const shortURL = data.link;
-
-                // Modify original URL to remove the ":" after "https"
-                const formattedURL = urlInput.replace("https://", "https//");
-
-                // Format the markdown with the original (modified) and shortened URL
-                const formattedMarkdown = `[${formattedURL}](${shortURL})`;
-
-                // Display the popup with the clickable hyperlink
-                popupOverlay.style.display = "block";
-                popup.style.display = "block";
-                popup.innerHTML = `
-                    <p>Generated Link:</p>
-                    <a href="${shortURL}" target="_blank">${formattedMarkdown}</a>
-                    <br>
-                    <button onclick="copyToClipboard('${formattedMarkdown}')">Copy</button>
-                    <button onclick="closePopup()">OK</button>
-                `;
             } catch (error) {
                 console.error("Error occurred:", error);
                 alert(`Failed to shorten URL: ${error.message}`);
@@ -194,9 +250,29 @@
         }
 
         function closePopup() {
-            document.getElementById("popupOverlay").style.display = "none";
-            document.getElementById("popup").style.display = "none";
+            const popup = document.getElementById("popup");
+            popup.style.animation = "slideUp 0.5s forwards";
+            setTimeout(() => {
+                document.getElementById("popupOverlay").style.display = "none";
+                popup.style.display = "none";
+            }, 500); // Wait for animation to finish
         }
+
+        // Generate snowflakes dynamically
+        function createSnowflakes() {
+            const snowflakes = document.getElementById('snowflakes');
+            for (let i = 0; i < 50; i++) {
+                const snowflake = document.createElement('div');
+                snowflake.classList.add('snowflake');
+                snowflake.style.left = Math.random() * 100 + 'vw';
+                snowflake.style.animationDuration = Math.random() * 5 + 5 + 's'; // Fall speed
+                snowflake.style.animationDelay = Math.random() * 5 + 's';
+                snowflake.style.opacity = Math.random() * 0.8 + 0.2; // Random opacity
+                snowflakes.appendChild(snowflake);
+            }
+        }
+
+        createSnowflakes();
     </script>
 </body>
 </html>
